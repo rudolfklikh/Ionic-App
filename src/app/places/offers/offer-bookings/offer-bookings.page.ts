@@ -19,7 +19,7 @@ export class OfferBookingsPage implements OnInit {
   ngOnInit() {
     this.place$ = this.route.paramMap.pipe(
       map(paramMap => paramMap.get('placeId')),
-      switchMap(id => of(this.placesService.getSinglePlace(id)))
+      switchMap(id => this.placesService.getSinglePlace(id))
     );
   }
 
