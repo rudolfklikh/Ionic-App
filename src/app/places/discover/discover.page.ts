@@ -15,6 +15,7 @@ export class DiscoverPage implements OnInit {
   loadedPlaces$: Observable<Array<Place>>;
   listedLoadedPlaces$: Observable<Array<Place>>;
   relevantPlaces$: Observable<Array<Place>>;
+  isLoading = false;
 
   constructor(private placesService: PlacesService, private authService: AuthService) { }
 
@@ -22,6 +23,11 @@ export class DiscoverPage implements OnInit {
     this.loadedPlaces$ = this.placesService.places;
 	 this.relevantPlaces$ = this.loadedPlaces$;
     this.listedLoadedPlaces$ = this.relevantPlaces$.pipe(map(places => places.slice(1)));
+  }
+
+  ionViewWillEnter() {
+	  this.isLoading = true;
+	  this.placesService.fetchPlaces().subscribe(() => this.isLoading = false);
   }
 
   onFilterUpdate(event: CustomEvent<SegmentChangeEventDetail>) {

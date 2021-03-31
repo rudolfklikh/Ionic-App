@@ -11,10 +11,16 @@ import { Observable } from 'rxjs';
 })
 export class BookingsPage implements OnInit {
   loadedBookings$: Observable<Array<Booking>>;
+  isLoading = false;
   constructor(private bookingsService: BookingsService, private loadingCtr: LoadingController) { }
 
   ngOnInit() {
     this.loadedBookings$ = this.bookingsService.bookings;
+  }
+
+  ionViewWillEnter() {
+	  this.isLoading = true;
+	  this.bookingsService.fetchBookings().subscribe(() => this.isLoading = false);
   }
 
   onCancelBooking(bookingId, slidingEl: IonItemSliding) {

@@ -1,62 +1,81 @@
 import { Injectable } from '@angular/core';
 import { Place } from './place.model';
 import { AuthService } from '../auth/auth.service';
-import { BehaviorSubject } from 'rxjs';
-import { filter, take, map, tap, timeout, delay } from 'rxjs/operators';
+import { BehaviorSubject, of } from 'rxjs';
+import { filter, take, map, tap, timeout, delay, switchMap } from 'rxjs/operators';
+import { HttpClient } from '@angular/common/http';
+
+
+export interface PlaceData {
+	availableFrom: string;
+	availableTo: string;
+	description: string;
+	imgUrl: string;
+	price: number;
+	title: string;
+	userId: string;
+}
 
 @Injectable({
 	providedIn: 'root'
 })
 export class PlacesService {
+	private _places = new BehaviorSubject<Place[]>([]);
 
-	constructor(private authService: AuthService) { }
+	constructor(private authService: AuthService, private http: HttpClient) { }
 
-	private _places = new BehaviorSubject<Place[]>([
-		new Place(
-			'p1',
-			'Manhattan Mansion',
-			'In the heart of New York City.',
-			'https://lonelyplanetimages.imgix.net/mastheads/GettyImages-538096543_medium.jpg?sharp=10&vib=20&w=1200',
-			149.99,
-			new Date('2021-01-01'),
-			new Date('2021-12-31'),
-			'abc'
-		),
-		new Place(
-			'p2',
-			"L'Amour Toujours",
-			'A romantic place in Paris!',
-			'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e6/Paris_Night.jpg/1024px-Paris_Night.jpg',
-			189.99,
-			new Date('2021-01-01'),
-			new Date('2021-12-31'),
-			'abc'
-		),
-		new Place(
-			'p3',
-			'The Foggy Palace',
-			'Not your average city trip!',
-			'https://upload.wikimedia.org/wikipedia/commons/0/01/San_Francisco_with_two_bridges_and_the_fog.jpg',
-			99.99,
-			new Date('2021-01-01'),
-			new Date('2021-12-31'),
-			'abc'
-		)
-	]);
+	fetchPlaces() {
+		return this.http.get<{ [key: string]: PlaceData }>('https://first-ionic-app-cffc9-default-rtdb.europe-west1.firebasedatabase.app/offered-places.json')
+			.pipe(
+				map(resData => {
+					const places = [];
+
+					for (const key in resData) {
+						if (Object.prototype.hasOwnProperty.call(resData, key)) {
+							places.push(new Place(
+								key,
+								resData[key].title,
+								resData[key].description,
+								resData[key].imgUrl,
+								resData[key].price,
+								new Date(resData[key].availableFrom),
+								new Date(resData[key].availableTo),
+								resData[key].userId))
+						}
+					}
+					return places;
+				}),
+				delay(1500),
+				tap(places => {
+					this._places.next(places);
+				})
+			)
+	}
+
 
 	get places() {
 		return this._places.asObservable();
 	};
 
 
-	getSinglePlace(id: string) {
-		return this.places.pipe(take(1), map(places => {
-			return { ...places.find(p => p.id === id) };
-		}));
+	getSinglePlace<PlaceData>(id: string) {
+		return this.http.get(`https://first-ionic-app-cffc9-default-rtdb.europe-west1.firebasedatabase.app/offered-places/${id}.json`).pipe(
+			map((placeData: any) => {
+				return new Place(id, 	
+					placeData.title,
+					placeData.description,
+					placeData.imgUrl,
+					placeData.price,
+					new Date(placeData.availableFrom),
+					new Date(placeData.availableTo),
+					placeData.userId)
+			})
+		)
 	}
 
 
 	addPlace(title: string, description: string, price: number, dateFrom: Date, dateTo: Date) {
+		let generatedId: string;
 		const newPlace = new Place(
 			Math.random().toString(),
 			title,
@@ -67,36 +86,57 @@ export class PlacesService {
 			dateTo,
 			this.authService.userId
 		);
-		return this.places.pipe(
-			take(1),
-			delay(2000),
-			tap((places: Array<Place>) => this._places.next(places.concat(newPlace)))
-		);
+
+		return this.http.post<{ name: string }>('https://first-ionic-app-cffc9-default-rtdb.europe-west1.firebasedatabase.app/offered-places.json', { ...newPlace, id: null })
+			.pipe(
+				switchMap(resData => {
+					generatedId = resData.name;
+					return this.places;
+				}),
+				take(1),
+				tap((places: Array<Place>) => {
+					newPlace.id = generatedId;
+					this._places.next(places.concat(newPlace));
+				})
+			);
 	}
 
 
 
 	updatePlace(placeId: string, title: string, description: string) {
-		console.log(title);
+		let updatedPlaces: Place[];
 		return this.places.pipe(
 			take(1),
 			delay(1000),
-			tap(places => {
+			switchMap((places: Array<Place>) => {
+				if (!places || places.length <= 0) {
+					return this.fetchPlaces();
+				} else {
+					return of(places);
+				}
+			}),
+			switchMap((places: Array<Place>) => {
 				const updatedPlaceIndex = places.findIndex(pl => pl.id === placeId);
-				const updatedPlaces = [...places];
+				updatedPlaces = [...places];
 				const oldPlace = updatedPlaces[updatedPlaceIndex];
 				updatedPlaces[updatedPlaceIndex] = new Place(
-					oldPlace.id, 
-					title, 
-					description, 
+					oldPlace.id,
+					title,
+					description,
 					oldPlace.imgUrl,
-					oldPlace.price, 
-					oldPlace.availableFrom, 
-					oldPlace.availableTo, 
-					oldPlace.userId
+					oldPlace.price,
+					oldPlace.availableFrom,
+					oldPlace.availableTo,
+					oldPlace.userId);
+
+				return this.http.put(
+					`https://first-ionic-app-cffc9-default-rtdb.europe-west1.firebasedatabase.app/offered-places/${placeId}.json`,
+					{...updatedPlaces[updatedPlaceIndex], id: null }
 				);
+			}),
+			tap(() => {
 				this._places.next(updatedPlaces);
 			})
-		);
+		)
 	}
 }

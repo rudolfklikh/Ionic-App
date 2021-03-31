@@ -5,12 +5,15 @@
 
         </ion-back-button>
     </ion-buttons>
-    <ion-title>{{ (place$ | async).title }}</ion-title>
+    <ion-title>{{ isLoading ? 'Loading....' :  (place$ | async).title }}</ion-title>
   </ion-toolbar>
 </ion-header>
 
 <ion-content>
-	<ion-grid class="ion-no-padding">
+	<div class="ion-text-center" *ngIf="isLoading && !(place$ | async)">
+		<ion-spinner color="primary"></ion-spinner>
+	</div>
+	<ion-grid class="ion-no-padding" *ngIf="!isLoading && (place$ | async)">
 		<ion-row>
 			<ion-col size-sm="6" offset-sm="3" class="ion-no-padding">
 				<ion-img [src]="( place$ | async ).imgUrl"></ion-img>

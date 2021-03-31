@@ -1,11 +1,11 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Observable, of } from 'rxjs';
-import { map, switchMap, take, tap, finalize } from 'rxjs/operators';
+import { map, switchMap, take, tap, finalize, catchError } from 'rxjs/operators';
 import { Place } from '../../place.model';
 import { PlacesService } from '../../places.service';
 import { FormGroup, FormControl, Validators } from '@angular/forms';
-import { LoadingController } from '@ionic/angular';
+import { AlertController, LoadingController } from '@ionic/angular';
 
 @Component({
 	selector: 'app-edit-offer',
@@ -13,14 +13,21 @@ import { LoadingController } from '@ionic/angular';
 	styleUrls: ['./edit-offer.page.scss'],
 })
 export class EditOfferPage implements OnInit {
-	place$: Observable<Place>;
+	place$: Observable<any | Place>;
+	placeId: string;
 	form: FormGroup;
+	isLoading = false;
 
-	constructor(private route: ActivatedRoute, private placesService: PlacesService, private router: Router, private loadingCtrl: LoadingController) { }
+	constructor(private route: ActivatedRoute, private placesService: PlacesService, private router: Router, private loadingCtrl: LoadingController,
+		private alertCtrl: AlertController) { }
 
 	ngOnInit(): void {
+		this.isLoading = true;
 		this.place$ = this.route.paramMap.pipe(
-			map(paramMap => paramMap.get('placeId')),
+			map(paramMap => {
+				this.placeId = paramMap.get('placeId');
+				return paramMap.get('placeId');
+			}),
 			switchMap(id => this.placesService.getSinglePlace(id)
 				.pipe(
 					tap(place => {
@@ -28,7 +35,19 @@ export class EditOfferPage implements OnInit {
 							title: new FormControl(place.title, { updateOn: 'blur', validators: [Validators.required] }),
 							description: new FormControl(place.description, { updateOn: 'blur', validators: [Validators.required, Validators.maxLength(180)] }),
 						});
+						this.isLoading = false;
 						return place;
+					}),
+					catchError(err => {
+						return this.alertCtrl.create({
+							header: 'An error occured!',
+							message: 'Place could not be fetch.. Try again Later',
+							buttons: [{text: 'Okay', handler: () => {
+								this.router.navigate(['/places/tabs/offers']);
+							}}]
+						}).then(alertEl => {
+							alertEl.present();
+						})
 					})
 				))
 		);
